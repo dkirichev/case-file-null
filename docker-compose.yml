@@ -1,0 +1,48 @@
+# Local practice stack only.
+# db:  MySQL 8 on 127.0.0.1:3307 (3306 is your system MySQL).
+# php: sandbox for the PDO cases. No ports, no mounts, no internet, read-only filesystem.
+services:
+  db:
+    image: mysql:8.0
+    container_name: case-file-null-db
+    environment:
+      MYSQL_ROOT_PASSWORD: halcyon-root
+      MYSQL_DATABASE: halcyon
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - dbdata:/var/lib/mysql
+    networks: [default, sandbox]
+    healthcheck:
+      # -h 127.0.0.1 forces TCP, so this only passes once init scripts are done.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-phalcyon-root"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  php:
+    build: ./docker/php
+    image: case-file-null-php
+    container_name: case-file-null-php
+    command: ["sleep", "infinity"]
+    init: true
+    user: "65534:65534"
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 256m
+    pids_limit: 64
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    stop_grace_period: 1s
+    networks: [sandbox]
+    depends_on:
+      db:
+        condition: service_healthy
+
+networks:
+  sandbox:
+    internal: true
+
+volumes:
+  dbdata:
